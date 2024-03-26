@@ -16,10 +16,11 @@ const DECODER = {
 const encodedNull = ENCODER[0].repeat(4);
 
 // TODO: these render as space width in browsers :-(
-const ANNOTATION_ANCHOR = "\uFFF9";
-const ANNOTATION_SEPARATOR = "\uFFFA";
-const ANNOTATION_TERMINATOR = "\uFFFB";
-const ANNOTATION_RX = /[\uFFF9\uFFFA\uFFFB]/g;
+const ANNOTATION_ANCHOR = "("; //"\u2060"// "\uFFF9";
+const ANNOTATION_SEPARATOR = "|"; //"\u2061"// "\uFFFA";
+const ANNOTATION_TERMINATOR = ")"; //"\u2062"// "\uFFFB";
+const ANNOTATION_BOUNDS_RX = /[()|]/g; // /[\u2060-\u2062]/g;
+const ANNOTATION_PARTS_RX = /\uFFF9|\uFFFA[\u200B\u200C\u200D\uFEFF]+\uFFFB/g;
 
 /**
  * Adds an encoded JSON object to a string as hidden characters. Can later be
@@ -111,10 +112,7 @@ export function remove(annotated) {
  * @returns {string}            The string with all annotations removed
  */
 export function removeAll(annotated) {
-  return annotated.replaceAll(
-    /\uFFF9|\uFFFA[\u200B\u200C\u200D\uFEFF]+\uFFFB/g,
-    ""
-  );
+  return annotated.replaceAll(ANNOTATION_PARTS_RX, "");
 }
 
 /**
@@ -128,9 +126,9 @@ export function replaceAll(annotated, replacer) {
   let searchStack = [];
   let range;
 
-  ANNOTATION_RX.lastIndex = 0;
-  while (ANNOTATION_RX.test(annotated)) {
-    const matchIndex = ANNOTATION_RX.lastIndex - 1;
+  ANNOTATION_BOUNDS_RX.lastIndex = 0;
+  while (ANNOTATION_BOUNDS_RX.test(annotated)) {
+    const matchIndex = ANNOTATION_BOUNDS_RX.lastIndex - 1;
     const matchChar = annotated[matchIndex];
     if (matchChar === ANNOTATION_ANCHOR) {
       if (range) {
@@ -148,7 +146,7 @@ export function replaceAll(annotated, replacer) {
         const [start, , end] = range;
         annotated =
           annotated.slice(0, start) + replacement + annotated.slice(end + 1);
-        ANNOTATION_RX.lastIndex -= end + 1 - start - replacement.length;
+        ANNOTATION_BOUNDS_RX.lastIndex -= end + 1 - start - replacement.length;
         range = searchStack.pop();
       }
     }
@@ -159,10 +157,10 @@ export function replaceAll(annotated, replacer) {
 
 /**
  * Yields a generator sequence of raw annotated ranges found in the provided
- * annotated string.
+ * annotated string in order of the start point of each annotated range.
  *
  * @private
- * @arg {string} annotated        The string annotated with hidden data
+ * @param   {string} annotated    A string annotated with hidden data
  * @returns {Generator<RawRange>} The retrieved annotated ranges.
  * @typedef {[start: number, separator: number, end: number]} RawRange
  */
@@ -171,9 +169,9 @@ function* findRanges(annotated) {
   let searchStack = [];
   let range;
 
-  ANNOTATION_RX.lastIndex = 0;
-  while (ANNOTATION_RX.test(annotated)) {
-    const matchIndex = ANNOTATION_RX.lastIndex - 1;
+  ANNOTATION_BOUNDS_RX.lastIndex = 0;
+  while (ANNOTATION_BOUNDS_RX.test(annotated)) {
+    const matchIndex = ANNOTATION_BOUNDS_RX.lastIndex - 1;
     const matchChar = annotated[matchIndex];
     if (matchChar === ANNOTATION_ANCHOR) {
       if (range) {
@@ -212,15 +210,10 @@ function* findRanges(annotated) {
  * @returns {string}      The data encoded as a non-rendering string
  */
 export function encodeData(data) {
-  const json = JSON.stringify(data ?? null);
   let encoded = encodedNull;
-  for (let i = 0; i < json.length; i++) {
-    let charCode = json.charCodeAt(i);
-    if (charCode > 255) {
-      throw new Error(
-        `Error encoding non-ASCII ${char} (${charCode}) in ${data}`
-      );
-    }
+  const asciiJSON = toAsciiJson(data)
+  for (let i = 0; i < asciiJSON.length; i++) {
+    let charCode = asciiJSON.charCodeAt(i);
     encoded +=
       ENCODER[charCode >> 6] +
       ENCODER[(charCode >> 4) & 3] +
@@ -241,7 +234,7 @@ export function encodeData(data) {
  */
 export function decodeData(encoded) {
   if (encoded.length % 4 !== 0 || encoded.slice(0, 4) !== encodedNull) {
-    throw new Error("Invalid encoded data");
+    throw new Error(`Invalid encoded data: ${toAsciiJson(encoded)}`);
   }
   let decoded = "";
   for (let i = 4; i < encoded.length; i += 4) {
@@ -260,8 +253,8 @@ export function decodeData(encoded) {
  * Creates an AnnotatedRange from an annotated string and RawRange
  *
  * @private
- * @param {string}    annotated
- * @param {RawRange}  range
+ * @param   {string}    annotated
+ * @param   {RawRange}  range
  * @returns {AnnotatedRange}
  */
 function createAnnotatedRange(annotated, range) {
@@ -272,4 +265,11 @@ function createAnnotatedRange(annotated, range) {
     string: annotated.slice(start + 1, separator),
     data: decodeData(annotated.slice(separator + 1, end)),
   };
+}
+
+function toAsciiJson(value) {
+  return JSON.stringify(value).replaceAll(
+    /[^\x00-\x7F]/g,
+    (char) => "\\u" + char.charCodeAt(0).toString(16).padStart(4, "0")
+  );
 }
