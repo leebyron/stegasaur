@@ -1,0 +1,16 @@
+{
+  "name": "stegasaurus",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "node test.mjs",
+    "build": "npx terser -cm --module index.mjs > index.min.mjs",
+    "measure": "cat index.mjs | wc -c; npx terser -cm --module index.mjs | wc -c; npx terser -cm --module index.mjs | gzip -9c | wc -c"
+  },
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "terser": "*"
+  }
+}
