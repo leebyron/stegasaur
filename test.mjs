@@ -19,7 +19,7 @@ for (let f1 of St.retrieveAll(t1)) {
   console.log(f1);
 }
 
-console.log("all", t1, St.retrieveAll(t1));
+console.log("all", t1, ...St.retrieveAll(t1));
 
 console.log("removed", St.remove(t1), St.remove(t1), [
   ...St.retrieveAll(St.remove(t1)),
@@ -33,8 +33,8 @@ console.log(
   St.replaceAll(t1, ({ string, data }) => `(${string}|${JSON.stringify(data)})`)
 );
 
-console.log('FINAL TEST')
-console.log(...St.retrieveAll('ok((then(wow|‌﻿‍​‍​‍‌‍‍‍‌‍‌‌‌‍‌‍‌‍​‍​‍﻿‍‍‍​‍​‍‌‌‌‍‌​‍‌‍‌‍‌​‍​‍‌‌)cool|​‍​‍‌‌‌‍‍‍‌‌‍‌‍‌​‍​‍)|‌‍﻿‍‌‌‌‌‍‌‍)more'))
+// console.log('FINAL TEST')
+// console.log(...St.retrieveAll('ok((then(wow|‌﻿‍​‍​‍‌‍‍‍‌‍‌‌‌‍‌‍‌‍​‍​‍﻿‍‍‍​‍​‍‌‌‌‍‌​‍‌‍‌‍‌​‍​‍‌‌)cool|​‍​‍‌‌‌‍‍‍‌‌‍‌‍‌​‍​‍)|‌‍﻿‍‌‌‌‌‍‌‍)more'))
 
 
 console.log(

@@ -1,9 +1,11 @@
-const ENCODER = [
-  "\u200B", // zero width space
-  "\u200C", // zero width non-joiner
-  "\u200D", // zero width joiner
-  "\uFEFF", // zero width no-break space
-];
+// const ENCODER = [
+//   "\u200B", // zero width space
+//   "\u200C", // zero width non-joiner
+//   "\u200D", // zero width joiner
+//   "\uFEFF", // zero width no-break space
+// ];
+
+const ENCODER = "\u200B\u200C\u200D\uFEFF"
 
 const DECODER = {
   "\u200B": 0,
@@ -13,14 +15,32 @@ const DECODER = {
 };
 
 // For compatibility with @vercel/stega
-const encodedNull = ENCODER[0].repeat(4);
+const encodedNull = "\u200B\u200B\u200B\u200B";
 
 // TODO: these render as space width in browsers :-(
-const ANNOTATION_ANCHOR = "("; //"\u2060"// "\uFFF9";
-const ANNOTATION_SEPARATOR = "|"; //"\u2061"// "\uFFFA";
-const ANNOTATION_TERMINATOR = ")"; //"\u2062"// "\uFFFB";
-const ANNOTATION_BOUNDS_RX = /[()|]/g; // /[\u2060-\u2062]/g;
-const ANNOTATION_PARTS_RX = /\uFFF9|\uFFFA[\u200B\u200C\u200D\uFEFF]+\uFFFB/g;
+// const ANNOTATION_ANCHOR = //"("; //"\u2060"// "\uFFF9";
+// const ANNOTATION_SEPARATOR = "\u0000" //"|"; //"\u2061"// "\uFFFA";
+// const ANNOTATION_TERMINATOR = "\u2064" //")"; //"\u2062"// "\uFFFB";
+// const ANNOTATION_BOUNDS_RX = /[()|]/g; // /[\u2060-\u2062]/g;
+// const ANNOTATION_PARTS_RX = /\uFFF9|\uFFFA[\u200B\u200C\u200D\uFEFF]+\uFFFB/g;
+
+const ANNOTATION_ANCHOR = "\u2064";
+// const ANNOTATION_PARTS_RX = /\u2064|[\u200B\u200C\u200D\uFEFF]+/g;
+
+
+// const ANNOTATION_PARTS_RX = /\u2064|\u200B{4}(?:[\u200C\u200D\uFEFF][\u200B\u200C\u200D\uFEFF]{3}|\u200B(?:[\u200C\u200D\uFEFF][\u200B\u200C\u200D\uFEFF]{2}|\u200B(?:[\u200C\u200D\uFEFF][\u200B\u200C\u200D\uFEFF]|\u200B[\u200C\u200D\uFEFF])))+/g
+
+
+
+// /x|0{4}(?:0(?:0(?:0[123]|[123][0123])|[123][0123]{2})|[123][0123]{3})+/g
+
+// const r0123 = `[${ENCODER}]`, r0 = ENCODER[0], r123 = `[${ENCODER.slice(1)}]`, ANNOTATION_PARTS_RX = new RegExp(
+//   `${ANNOTATION_ANCHOR}|${r0}{4}(?:${r0}(?:${r0}(?:${r0}${r123}|${r123}${r0123})|${r123}${r0123}{2})|${r123}${r0123}{3})+`
+//   , 'g')
+
+
+  const ANNOTATION_PARTS_RX = /\u2064|\u200B{4}(?:\u200B(?:\u200B(?:\u200B[\u200C\u200D\uFEFF]|[\u200C\u200D\uFEFF][\u200B\u200C\u200D\uFEFF])|[\u200C\u200D\uFEFF][\u200B\u200C\u200D\uFEFF]{2})|[\u200C\u200D\uFEFF][\u200B\u200C\u200D\uFEFF]{3})+/g
+  // console.log(ANNOTATION_PARTS_RX, '<<<>>>', ANNOTATION_PARTS_RX2, '>>><<<', r0, r123, r0123)
 
 /**
  * Adds an encoded JSON object to a string as hidden characters. Can later be
@@ -31,13 +51,7 @@ const ANNOTATION_PARTS_RX = /\uFFF9|\uFFFA[\u200B\u200C\u200D\uFEFF]+\uFFFB/g;
  * @returns {string}        An annotated string
  */
 export function annotate(string, data) {
-  return (
-    ANNOTATION_ANCHOR +
-    string +
-    ANNOTATION_SEPARATOR +
-    encodeData(data) +
-    ANNOTATION_TERMINATOR
-  );
+  return ANNOTATION_ANCHOR + string + encodeData(data);
 }
 
 /**
@@ -50,7 +64,7 @@ export function annotate(string, data) {
  */
 export function isAnnotated(string, strict = false) {
   for (let [start, , end] of findRanges(string)) {
-    return !strict || (start === 0 && end === string.length - 1);
+    return !strict || (start === 0 && end === string.length);
   }
   return false;
 }
@@ -99,7 +113,7 @@ export function remove(annotated) {
     return (
       annotated.slice(0, start) +
       annotated.slice(start + 1, separator) +
-      annotated.slice(end + 1)
+      annotated.slice(end)
     );
   }
   return annotated;
@@ -125,28 +139,34 @@ export function removeAll(annotated) {
 export function replaceAll(annotated, replacer) {
   let searchStack = [];
   let range;
+  let match;
 
-  ANNOTATION_BOUNDS_RX.lastIndex = 0;
-  while (ANNOTATION_BOUNDS_RX.test(annotated)) {
-    const matchIndex = ANNOTATION_BOUNDS_RX.lastIndex - 1;
-    const matchChar = annotated[matchIndex];
-    if (matchChar === ANNOTATION_ANCHOR) {
+  ANNOTATION_PARTS_RX.lastIndex = 0;
+  while ((match = ANNOTATION_PARTS_RX.exec(annotated))) {
+    // const matchIndex = ANNOTATION_PARTS_RX.lastIndex - 1;
+    // const matchChar = annotated[matchIndex];
+    const matchIndex = match.index;
+    const matchString = match[0];
+
+    if (matchString === ANNOTATION_ANCHOR) {
       if (range) {
         searchStack.push(range);
       }
       range = [matchIndex, null, null];
-    } else if (matchChar === ANNOTATION_SEPARATOR) {
+      // } else if (matchChar === ANNOTATION_SEPARATOR) {
+      //   if (range) {
+      //     range[1] = matchIndex;
+      //   }
+      // } else if (matchChar === ANNOTATION_TERMINATOR) {
+    } else {
       if (range) {
         range[1] = matchIndex;
-      }
-    } else if (matchChar === ANNOTATION_TERMINATOR) {
-      if (range && range[1]) {
-        range[2] = matchIndex;
+        range[2] = matchIndex + matchString.length;
         const replacement = replacer(createAnnotatedRange(annotated, range));
         const [start, , end] = range;
         annotated =
-          annotated.slice(0, start) + replacement + annotated.slice(end + 1);
-        ANNOTATION_BOUNDS_RX.lastIndex -= end + 1 - start - replacement.length;
+          annotated.slice(0, start) + replacement + annotated.slice(end);
+        ANNOTATION_PARTS_RX.lastIndex -= end - start - replacement.length;
         range = searchStack.pop();
       }
     }
@@ -168,29 +188,35 @@ function* findRanges(annotated) {
   let foundStack = [];
   let searchStack = [];
   let range;
+  let match;
 
-  ANNOTATION_BOUNDS_RX.lastIndex = 0;
-  while (ANNOTATION_BOUNDS_RX.test(annotated)) {
-    const matchIndex = ANNOTATION_BOUNDS_RX.lastIndex - 1;
-    const matchChar = annotated[matchIndex];
-    if (matchChar === ANNOTATION_ANCHOR) {
+  ANNOTATION_PARTS_RX.lastIndex = 0;
+  while ((match = ANNOTATION_PARTS_RX.exec(annotated))) {
+    const matchIndex = match.index;
+    const matchString = match[0];
+
+    // const matchIndex = ANNOTATION_PARTS_RX.lastIndex - 1;
+    // const matchChar = annotated[matchIndex];
+    if (matchString === ANNOTATION_ANCHOR) {
       if (range) {
         searchStack.push(range);
       }
       range = [matchIndex, null, null];
-    } else if (matchChar === ANNOTATION_SEPARATOR) {
+      // } else if (matchChar === ANNOTATION_SEPARATOR) {
+      //   if (range) {
+      //     range[1] = matchIndex;
+      //   }
+      // } else if (matchChar === ANNOTATION_TERMINATOR) {
+    } else {
       if (range) {
         range[1] = matchIndex;
-      }
-    } else if (matchChar === ANNOTATION_TERMINATOR) {
-      if (range && range[1]) {
-        range[2] = matchIndex;
+        range[2] = matchIndex + matchString.length;
         foundStack.push(range);
         if (searchStack.length > 0) {
           range = searchStack.pop();
         } else {
           while ((range = foundStack.pop())) {
-            if (range[1] && range[2]) {
+            if (range[1]) {
               yield range;
             }
           }
@@ -211,7 +237,7 @@ function* findRanges(annotated) {
  */
 export function encodeData(data) {
   let encoded = encodedNull;
-  const asciiJSON = toAsciiJson(data)
+  const asciiJSON = toAsciiJson(data);
   for (let i = 0; i < asciiJSON.length; i++) {
     let charCode = asciiJSON.charCodeAt(i);
     encoded +=
@@ -263,7 +289,7 @@ function createAnnotatedRange(annotated, range) {
     start,
     end,
     string: annotated.slice(start + 1, separator),
-    data: decodeData(annotated.slice(separator + 1, end)),
+    data: decodeData(annotated.slice(separator, end)),
   };
 }
 
