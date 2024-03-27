@@ -13,7 +13,7 @@ let t1 =
   ) +
   "more";
 
-console.log(t1);
+console.log('<', t1 , '>');
 
 for (let f1 of St.retrieveAll(t1)) {
   console.log(f1);
@@ -30,7 +30,7 @@ console.log("removed all", St.removeAll(t1), [
 
 console.log(
   "replace all",
-  St.replaceAll(t1, ({ string, data }) => `(${string}|${JSON.stringify(data)})`)
+  St.replaceAll(t1, ( string, data ) => `(${string}|${JSON.stringify(data)})`)
 );
 
 // console.log('FINAL TEST')
