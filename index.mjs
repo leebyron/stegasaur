@@ -313,6 +313,16 @@ onto the screen.
 
 Do this in a generator so work can be done incrementally for large pages.
 
+
+TODO: instead of looking for annotations fully contained in a piece of text,
+this should look for anchor and data markers in isolation. doing so would allow
+for "ranges" that span between elements.
+
+However the API for this then gets a bit more complicated. Specifically which
+"node" is affected is now usually the containing node?
+
+This is pretty hard to work on without a real test harness
+
 */
 
 /**
@@ -324,37 +334,87 @@ Do this in a generator so work can be done incrementally for large pages.
  * @returns {Generator<NodeAnnotation>}
  *
  * @typedef {Object} NodeAnnotation
- * @prop    {Node}   node     The node the annotation was found within
+ * @prop    {Node}   node     The node the annotation was found within. This
+ *                            will be a common ancestor if the annotation
+ *                            contains or is across HTML elements.
  * @prop    {string} property The property of the node the annotation is within
- * @prop    {DOMRectReadOnly} rect The visible region of the screen covering
- *                                 this annotation
+ * @prop    {DOMRectReadOnly[]} rects The visible region(s) of the screen
+ *                                    covering this annotation
  * @prop    {number} start    The start position of the annotation
  * @prop    {number} end      The end position of the annotation
  * @prop    {string} string   The string being annotated
  * @prop    {object} data     The data annotating this string
  */
 export function* findNodeAnnotations(rootNode) {
-  // Initialize a stack with the root node
-  const stack = [rootNode];
-  while (stack.length) {
-    const node = stack.pop();
+  const nodeStack = [rootNode];
+  const foundStack = [];
+  const startStack = [];
+  let start;
+  let match;
+
+  while (nodeStack.length) {
+    const node = nodeStack.pop();
 
     // If the current node is a text node, yield it
     const nodeType = node.nodeType;
     if (nodeType === Node.TEXT_NODE) {
       const data = node.data;
 
-      for (let annotation of retrieveAll(data)) {
-        const rect = null; // TODO lazy generation of createRange() and getBoundingClientRect()
-        // need to decide if this should be multiple ranges (for text that wraps?)
-        // also need to decide if this yields viewport relative or document relative
-        yield { node, property: "data", rect, ...annotation };
+      ANNOTATION_PARTS_RX.lastIndex = 0;
+      while ((match = ANNOTATION_PARTS_RX.exec(annotated))) {
+        const matchIndex = match.index;
+        const matchString = match[0];
+
+        if (matchString === ANNOTATION_ANCHOR) {
+          if (start) {
+            startStack.push(start);
+          }
+          // Adding in a start of the text node and offset for use in range.setStart
+          start = [node, matchIndex];
+        } else {
+          // Adds the start or if there wasn't one, assumes the beginning of this
+          // specific text node. Then also adds the end node and offsets for use
+          // in range.setEnd and the rest of the raw annotation data to produce
+          // the rest.
+          // In the case this is across multiple nodes, cloneContents() might
+          // be necessary to get the "string" or toString() will do it and
+          // actually produce a real string.
+          foundStack.push([
+            start || [node, 0],
+            node,
+            matchIndex + matchString.length,
+            matchIndex,
+            matchString,
+          ]);
+          if (startStack.length > 0) {
+            start = startStack.pop();
+          } else {
+            while (foundStack.length) {
+              const found = foundStack.pop();
+
+              // TODO: convert into data structure!
+              yield found;
+            }
+          }
+        }
       }
+
+      // for (let annotation of retrieveAll(data)) {
+
+      //   const range = document.createRange()
+      //   range.st
+
+      //   const rect = null; // TODO lazy generation of createRange() and getBoundingClientRect()
+      //   // need to decide if this should be multiple ranges (for text that wraps?)
+      //   // also need to decide if this yields viewport relative or document relative
+      //   yield { node, property: "data", rect, ...annotation };
+      // }
     } else if (nodeType === Node.ELEMENT_NODE) {
       const tagName = node.tagName;
       if (tagName === "SCRIPT") continue;
 
       // TODO: image alt & ariaLabels
+      // For these, the range must be fully contained, so the reusable findRange can be used.
 
       // Add all child nodes of the current node to the stack to process next.
       // Note: We're adding the child nodes in reverse order to ensure that they
@@ -364,8 +424,12 @@ export function* findNodeAnnotations(rootNode) {
         i >= 0;
         i--
       ) {
-        stack.push(children[i]);
+        nodeStack.push(children[i]);
       }
     }
   }
 }
+
+
+
+
