@@ -151,7 +151,7 @@ export function replaceAll(annotated, replacer) {
       }
       start = matchIndex;
     } else {
-      start = start || 0
+      start = start || 0;
       const end = matchIndex + matchString.length;
       const string = annotated.slice(start + 1, matchIndex);
       const data = decodeData(matchString);
@@ -293,4 +293,79 @@ function toAsciiJson(value) {
     /[^\x00-\x7F]/g,
     (char) => "\\u" + char.charCodeAt(0).toString(16).padStart(4, "0")
   );
+}
+
+/*
+
+// HTML
+
+Given a root node, crawl the DOM tree looking for text that might contain
+encoded data, then for each return:
+
+- The element (node?) it was found in
+- The property it was found in (textContent, alt)
+- The AnnotatedRange (or should be a subtype? with these props expanded out?)
+- A DOM Rect describing where its visible on the screen
+
+
+This then offers full control to manipulate the nodes, the content, or draw
+onto the screen.
+
+Do this in a generator so work can be done incrementally for large pages.
+
+*/
+
+/**
+ * Given a root DOM Node, searches through the DOM tree looking for annotations,
+ * and yielding `NodeAnnotation` objects as they are found to fully describe
+ * their location within the DOM.
+ *
+ * @param {Node} rootNode
+ * @returns {Generator<NodeAnnotation>}
+ *
+ * @typedef {Object} NodeAnnotation
+ * @prop    {Node}   node     The node the annotation was found within
+ * @prop    {string} property The property of the node the annotation is within
+ * @prop    {DOMRectReadOnly} rect The visible region of the screen covering
+ *                                 this annotation
+ * @prop    {number} start    The start position of the annotation
+ * @prop    {number} end      The end position of the annotation
+ * @prop    {string} string   The string being annotated
+ * @prop    {object} data     The data annotating this string
+ */
+export function* findNodeAnnotations(rootNode) {
+  // Initialize a stack with the root node
+  const stack = [rootNode];
+  while (stack.length) {
+    const node = stack.pop();
+
+    // If the current node is a text node, yield it
+    const nodeType = node.nodeType;
+    if (nodeType === Node.TEXT_NODE) {
+      const data = node.data;
+
+      for (let annotation of retrieveAll(data)) {
+        const rect = null; // TODO lazy generation of createRange() and getBoundingClientRect()
+        // need to decide if this should be multiple ranges (for text that wraps?)
+        // also need to decide if this yields viewport relative or document relative
+        yield { node, property: "data", rect, ...annotation };
+      }
+    } else if (nodeType === Node.ELEMENT_NODE) {
+      const tagName = node.tagName;
+      if (tagName === "SCRIPT") continue;
+
+      // TODO: image alt & ariaLabels
+
+      // Add all child nodes of the current node to the stack to process next.
+      // Note: We're adding the child nodes in reverse order to ensure that they
+      // are popped from the stack in the correct order.
+      for (
+        let children = node.childNodes, i = children.length - 1;
+        i >= 0;
+        i--
+      ) {
+        stack.push(children[i]);
+      }
+    }
+  }
 }
