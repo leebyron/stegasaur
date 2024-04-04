@@ -8,32 +8,38 @@ export async function serve(
   dir = dirname(fileURLToPath(import.meta.url)),
   port = 3000
 ) {
-  const server = createServer((request, response) => {
-    const filePath = join(dir, request.url === '/' ? 'index.html' : request.url)
+  const server = createServer(
+    { keepAliveTimeout: 100 },
+    (request, response) => {
+      const filePath = join(
+        dir,
+        request.url === '/' ? 'index.html' : request.url
+      )
 
-    readFile(filePath, (error, content) => {
-      const contentType = extname(filePath).endsWith('js')
-        ? 'text/javascript'
-        : 'text/html'
-      response.writeHead(error ? (error.code === 'ENOENT' ? 404 : 500) : 200, {
-        'Content-Type': contentType,
+      readFile(filePath, (error, content) => {
+        const code = error ? (error.code === 'ENOENT' ? 404 : 500) : 200
+        const headers = {
+          'Content-Type':
+            !error && extname(filePath).endsWith('js')
+              ? 'text/javascript'
+              : 'text/html',
+        }
+        console.log('Serve:', filePath, code, headers)
+        response.writeHead(code, headers)
+        response.end(error ? error.message : content, 'utf-8')
       })
-      response.end(error ?? content, 'utf-8')
-    })
-  })
-
-  server.keepAliveTimeout = 500
+    }
+  )
 
   await promisify(server.listen).call(server, port)
-  console.log(`Serving ${dir} at http://localhost:${port}/`)
-  return async () => {
-    await promisify(server.close).call(server)
-    console.log('Server closed')
-  }
+  return { dir, port, close: promisify(server.close).bind(server) }
 }
 
 // TODO: remove once this is used more directly
 if (import.meta.url === `file://${process.argv[1]}`) {
-  const close = await serve()
-  await close()
+  const server = await serve()
+  console.log(`Serve: ${server.dir} at http://localhost:${server.port}/`)
+  await promisify(setTimeout)(3000)
+  await server.close()
+  console.log('Serve: closed')
 }
