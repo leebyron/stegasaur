@@ -11,6 +11,7 @@
   "author": "",
   "license": "MIT",
   "devDependencies": {
+    "puppeteer": "^22.6.2",
     "terser": "*"
   }
 }
