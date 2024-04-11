@@ -1,11 +1,41 @@
 <html>
   <head>
-    <script type="module">
-      import * as Stegasaur from './stegasaur.mjs'
-      console.log(Stegasaur)
+    <script>
+      ;(async () => {
+        await new Promise(resolve => setTimeout(resolve, 1000))
+        const St = await import('./stegasaur.mjs')
+        for (const found of St.findNodeAnnotations(document.documentElement)) {
+          console.log(found, found.data, found.range)
+
+          const rects = found.range.getClientRects()
+          const d = document.createElement('div')
+          d.style.opacity = '0.2'
+          d.style.position = 'absolute'
+          d.style.pointerEvents = 'none'
+          d.style.top = '0px'
+          d.style.left = '0px'
+          document.body.appendChild(d)
+          for (const rect of rects) {
+            d.innerHTML += `<div style="background:#ff9900;position:absolute;top:${rect.top}px;left:${rect.left};width:${rect.width};height:${rect.height};" />`
+          }
+        }
+      })()
     </script>
   </head>
   <body>
     Test 123
+    <script>
+      {
+        const currentScript = document.currentScript
+        import('./stegasaur.mjs').then(St => {
+          const data = { hello: 'world' }
+          currentScript.outerHTML = `<div id="common">following is a ${St.annotate(
+            'hello <b><i>big</i> world',
+            data
+          )} and</b> other things</div>`
+        })
+      }
+    </script>
+    Another trailing text
   </body>
 </html>

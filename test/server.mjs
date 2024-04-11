@@ -24,7 +24,7 @@ export async function serve(
               ? 'text/javascript'
               : 'text/html',
         }
-        console.log('Serve:', filePath, code, headers)
+        console.log('Serve:', filePath, code)
         response.writeHead(code, headers)
         response.end(error ? error.message : content, 'utf-8')
       })
@@ -39,7 +39,15 @@ export async function serve(
 if (import.meta.url === `file://${process.argv[1]}`) {
   const server = await serve()
   console.log(`Serve: ${server.dir} at http://localhost:${server.port}/`)
-  await promisify(setTimeout)(3000)
-  await server.close()
-  console.log('Serve: closed')
+  process.once('SIGINT', async () => {
+    try {
+      process.stdout.write('Closing...')
+      await server.close()
+      process.stdout.write('\x1b[0G\x1b[KClosed\n')
+      process.exit(0) // Exit if needed
+    } catch (error) {
+      console.error(error)
+      process.exit(1)
+    }
+  })
 }

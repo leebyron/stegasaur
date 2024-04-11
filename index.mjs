@@ -358,10 +358,10 @@ export function* findNodeAnnotations(rootNode) {
     // If the current node is a text node, yield it
     const nodeType = node.nodeType;
     if (nodeType === Node.TEXT_NODE) {
-      const data = node.data;
+      const textData = node.data;
 
       ANNOTATION_PARTS_RX.lastIndex = 0;
-      while ((match = ANNOTATION_PARTS_RX.exec(annotated))) {
+      while ((match = ANNOTATION_PARTS_RX.exec(textData))) {
         const matchIndex = match.index;
         const matchString = match[0];
 
@@ -390,10 +390,16 @@ export function* findNodeAnnotations(rootNode) {
             start = startStack.pop();
           } else {
             while (foundStack.length) {
-              const found = foundStack.pop();
+              const [[startNode, startIndex], endNode, endIndex, , encodedData] = foundStack.pop();
+
+              const range = rootNode.ownerDocument.createRange()
+              range.setStart(startNode, startIndex)
+              range.setEnd(endNode, endIndex)
+
+              const data = decodeData(encodedData)
 
               // TODO: convert into data structure!
-              yield found;
+              yield { range, data };
             }
           }
         }

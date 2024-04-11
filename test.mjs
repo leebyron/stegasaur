@@ -1,5 +1,30 @@
 import * as St from "./index.mjs";
 
+
+
+// const somePlainText = "hello world"
+
+// const someData = { hello: "world" }
+
+// const hiddenMessage = St.annotate(somePlainText, someData)
+
+// const embeddedInABigString = ` --> ${hiddenMessage} <-- `
+
+// console.log(embeddedInABigString)
+
+// const getItOut = St.retrieve(embeddedInABigString)
+
+// console.log(getItOut)
+
+
+
+
+
+
+
+
+
+
 console.log(St.retrieve(St.annotate('test', {a:'éx†®å'})))
 
 let t1 =
